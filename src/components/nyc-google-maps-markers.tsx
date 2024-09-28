@@ -10,6 +10,7 @@ import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "
 import { useForm } from "react-hook-form"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import ReactMarkdown from 'react-markdown'
+import { useDropzone } from 'react-dropzone'
 
 const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
 
@@ -19,6 +20,7 @@ interface MapMarker {
   lng: number
   name: string
   description: string
+  createdAt: Date
 }
 
 const mapContainerStyle = {
@@ -50,6 +52,25 @@ export default function Component() {
     }
   })
 
+  const onDrop = useCallback((acceptedFiles: File[]) => {
+    acceptedFiles.forEach((file) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const base64String = reader.result as string
+        const imageMarkdown = `![${file.name}](${base64String})\n`
+        form.setValue('description', form.getValues('description') + imageMarkdown)
+      }
+      reader.readAsDataURL(file)
+    })
+  }, [form])
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({ 
+    onDrop,
+    accept: {
+      'image/*': []
+    }
+  })
+
   const onLoad = useCallback((map: google.maps.Map) => {
     setMap(map)
   }, [])
@@ -74,7 +95,8 @@ export default function Component() {
       lat,
       lng,
       name: name || `NYC Location ${markerIdCounter.current}`,
-      description
+      description,
+      createdAt: new Date()
     }
     setMarkers(prevMarkers => [...prevMarkers, newMarker])
   }
@@ -89,6 +111,16 @@ export default function Component() {
       setIsDialogOpen(false)
       form.reset()
     }
+  }
+
+  const formatDate = (date: Date) => {
+    return date.toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
   }
 
   return (
@@ -127,7 +159,12 @@ export default function Component() {
                 <div className="flex justify-between items-start">
                   <div className="w-full">
                     <h3 className="font-semibold">{marker.name}</h3>
-                    <p className="text-sm text-gray-600">Lat: {marker.lat.toFixed(4)}, Lng: {marker.lng.toFixed(4)}</p>
+                    <p className="text-sm text-gray-600">
+                      Lat: {marker.lat.toFixed(4)}, Lng: {marker.lng.toFixed(4)}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      Created: {formatDate(marker.createdAt)}
+                    </p>
                     <div className="mt-2 prose prose-sm max-w-none">
                       <ReactMarkdown>{marker.description}</ReactMarkdown>
                     </div>
@@ -166,11 +203,26 @@ export default function Component() {
                   <FormItem>
                     <FormLabel>Description (Markdown supported)</FormLabel>
                     <FormControl>
-                      <Textarea 
-                        placeholder="Enter location description (Markdown supported)" 
-                        {...field} 
-                        rows={5}
-                      />
+                      <div>
+                        <Textarea 
+                          placeholder="Enter location description (Markdown supported)" 
+                          {...field} 
+                          rows={5}
+                        />
+                        <div 
+                          {...getRootProps()} 
+                          className={`mt-2 border-2 border-dashed p-4 text-center cursor-pointer ${
+                            isDragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
+                          }`}
+                        >
+                          <input {...getInputProps()} />
+                          {isDragActive ? (
+                            <p>Drop the image here ...</p>
+                          ) : (
+                            <p>Drag 'n' drop an image here, or click to select one</p>
+                          )}
+                        </div>
+                      </div>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
