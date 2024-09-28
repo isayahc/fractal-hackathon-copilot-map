@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form"
 import { useForm } from "react-hook-form"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import ReactMarkdown from 'react-markdown'
 
 const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
 
@@ -124,10 +125,12 @@ export default function Component() {
             {markers.map(marker => (
               <li key={marker.id} className="bg-gray-100 p-4 rounded">
                 <div className="flex justify-between items-start">
-                  <div>
+                  <div className="w-full">
                     <h3 className="font-semibold">{marker.name}</h3>
                     <p className="text-sm text-gray-600">Lat: {marker.lat.toFixed(4)}, Lng: {marker.lng.toFixed(4)}</p>
-                    <p className="mt-2">{marker.description}</p>
+                    <div className="mt-2 prose prose-sm max-w-none">
+                      <ReactMarkdown>{marker.description}</ReactMarkdown>
+                    </div>
                   </div>
                   <Button variant="destructive" size="sm" onClick={() => removeMarker(marker.id)}>Remove</Button>
                 </div>
@@ -161,9 +164,13 @@ export default function Component() {
                 name="description"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Description</FormLabel>
+                    <FormLabel>Description (Markdown supported)</FormLabel>
                     <FormControl>
-                      <Textarea placeholder="Enter location description" {...field} />
+                      <Textarea 
+                        placeholder="Enter location description (Markdown supported)" 
+                        {...field} 
+                        rows={5}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
