@@ -1,26 +1,34 @@
 'use client'
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { GoogleMap, useJsApiLoader, Marker } from '@react-google-maps/api'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form"
 import { useForm } from "react-hook-form"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import ReactMarkdown from 'react-markdown'
 import { useDropzone } from 'react-dropzone'
+import { createClient } from '@supabase/supabase-js'
 
 const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  console.error('Supabase URL or Anon Key is missing')
+}
+
+const supabase = createClient(SUPABASE_URL!, SUPABASE_ANON_KEY!)
 
 interface MapMarker {
-  id: number
+  id: string
   lat: number
   lng: number
   name: string
   description: string
-  createdAt: Date
+  created_at: string
 }
 
 const mapContainerStyle = {
@@ -36,14 +44,13 @@ const nycCenter = {
 export default function Component() {
   const { isLoaded } = useJsApiLoader({
     id: 'google-map-script',
-    googleMapsApiKey: GOOGLE_MAPS_API_KEY
+    googleMapsApiKey: GOOGLE_MAPS_API_KEY!
   })
 
   const [map, setMap] = useState<google.maps.Map | null>(null)
   const [markers, setMarkers] = useState<MapMarker[]>([])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [clickedLocation, setClickedLocation] = useState<{ lat: number; lng: number } | null>(null)
-  const markerIdCounter = useRef(0)
 
   const form = useForm({
     defaultValues: {
@@ -51,6 +58,26 @@ export default function Component() {
       description: ''
     }
   })
+
+  useEffect(() => {
+    fetchMarkers()
+  }, [])
+
+  const fetchMarkers = async () => {
+    try {
+      console.log('Fetching markers...')
+      const { data, error } = await supabase
+        .from('markers')
+        .select('*')
+      if (error) {
+        throw error
+      }
+      console.log('Fetched markers:', data)
+      setMarkers(data || [])
+    } catch (error) {
+      console.error('Error fetching markers:', error)
+    }
+  }
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     acceptedFiles.forEach((file) => {
@@ -89,31 +116,54 @@ export default function Component() {
     }
   }
 
-  const addMarker = (lat: number, lng: number, name: string, description: string) => {
-    const newMarker: MapMarker = {
-      id: markerIdCounter.current++,
-      lat,
-      lng,
-      name: name || `NYC Location ${markerIdCounter.current}`,
-      description,
-      createdAt: new Date()
+  const addMarker = async (lat: number, lng: number, name: string, description: string) => {
+    try {
+      console.log('Adding marker:', { lat, lng, name, description })
+      const { data, error } = await supabase
+        .from('markers')
+        .insert([{ lat, lng, name, description }])
+        .select()
+      if (error) {
+        throw error
+      }
+      console.log('Added marker:', data)
+      if (data) {
+        setMarkers(prevMarkers => [...prevMarkers, data[0]])
+        console.log('Marker added successfully')
+      }
+    } catch (error) {
+      console.error('Error adding marker:', error)
     }
-    setMarkers(prevMarkers => [...prevMarkers, newMarker])
   }
 
-  const removeMarker = (id: number) => {
-    setMarkers(prevMarkers => prevMarkers.filter(marker => marker.id !== id))
+  const removeMarker = async (id: string) => {
+    try {
+      console.log('Removing marker:', id)
+      const { error } = await supabase
+        .from('markers')
+        .delete()
+        .eq('id', id)
+      if (error) {
+        throw error
+      }
+      console.log('Removed marker:', id)
+      setMarkers(prevMarkers => prevMarkers.filter(marker => marker.id !== id))
+      console.log('Marker removed successfully')
+    } catch (error) {
+      console.error('Error removing marker:', error)
+    }
   }
 
-  const onSubmit = (data: { name: string; description: string }) => {
+  const onSubmit = async (data: { name: string; description: string }) => {
     if (clickedLocation) {
-      addMarker(clickedLocation.lat, clickedLocation.lng, data.name, data.description)
+      await addMarker(clickedLocation.lat, clickedLocation.lng, data.name, data.description)
       setIsDialogOpen(false)
       form.reset()
     }
   }
 
-  const formatDate = (date: Date) => {
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString)
     return date.toLocaleString('en-US', {
       year: 'numeric',
       month: 'short',
@@ -163,7 +213,7 @@ export default function Component() {
                       Lat: {marker.lat.toFixed(4)}, Lng: {marker.lng.toFixed(4)}
                     </p>
                     <p className="text-sm text-gray-600">
-                      Created: {formatDate(marker.createdAt)}
+                      Created: {formatDate(marker.created_at)}
                     </p>
                     <div className="mt-2 prose prose-sm max-w-none">
                       <ReactMarkdown>{marker.description}</ReactMarkdown>
