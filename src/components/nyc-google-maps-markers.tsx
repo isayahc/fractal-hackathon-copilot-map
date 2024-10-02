@@ -14,6 +14,16 @@ import { createClient } from '@supabase/supabase-js'
 import { Pinecone } from "@pinecone-database/pinecone"
 import OpenAI from 'openai'
 
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+
+
 const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -53,6 +63,37 @@ const mapContainerStyle = {
   height: '500px'
 }
 
+interface InfoWindowContentProps {
+  marker: MapMarker
+  onClose: () => void
+  onGetRecommendations: (marker: MapMarker) => void
+}
+
+const InfoWindowContent: React.FC<InfoWindowContentProps> = ({ marker, onClose, onGetRecommendations }) => {
+  return (
+    <div className="max-w-sm p-2">
+      <h3 className="font-semibold text-lg mb-2">{marker.name}</h3>
+      <p className="text-sm text-gray-600 mb-2">
+        Lat: {marker.lat.toFixed(4)}, Lng: {marker.lng.toFixed(4)}
+      </p>
+      <p className="text-sm text-gray-600 mb-2">
+        Created: {new Date(marker.created_at).toLocaleString()}
+      </p>
+      <div className="prose prose-sm max-w-none mb-4">
+        <ReactMarkdown>{marker.description}</ReactMarkdown>
+      </div>
+      <div className="flex justify-between">
+        <Button size="sm" onClick={() => onGetRecommendations(marker)}>
+          Get Similar Locations
+        </Button>
+        <Button variant="outline" size="sm" onClick={onClose}>
+          Close
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 const nycCenter = {
   lat: 40.7128,
   lng: -74.0060
@@ -69,6 +110,8 @@ export default function NycGoogleMapsMarkers() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [clickedLocation, setClickedLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [recommendations, setRecommendations] = useState<MapMarker[]>([])
+  const [selectedMarker, setSelectedMarker] = useState<MapMarker | null>(null)
+
 
   const form = useForm({
     defaultValues: {
@@ -88,6 +131,10 @@ export default function NycGoogleMapsMarkers() {
   //     apiKey: PINECONE_API_KEY!,
   //   })
   // }
+
+  const handleMarkerClick = (marker: MapMarker) => {
+    setSelectedMarker(marker)
+  }
 
   
 
@@ -244,21 +291,34 @@ export default function NycGoogleMapsMarkers() {
       <h1 className="text-2xl font-bold mb-4">New York City Map Markers</h1>
       {isLoaded ? (
         <GoogleMap
-          mapContainerStyle={mapContainerStyle}
-          center={nycCenter}
-          zoom={10}
-          onLoad={onLoad}
-          onUnmount={onUnmount}
-          onClick={handleMapClick}
-        >
-          {markers.map(marker => (
-            <Marker
-              key={marker.id}
-              position={{ lat: marker.lat, lng: marker.lng }}
-              title={marker.name}
-            />
-          ))}
-        </GoogleMap>
+        mapContainerStyle={mapContainerStyle}
+        center={nycCenter}
+        zoom={10}
+        onLoad={onLoad}
+        onUnmount={onUnmount}
+        onClick={handleMapClick}
+      >
+        {markers.map(marker => (
+          <Marker
+            key={marker.id}
+            position={{ lat: marker.lat, lng: marker.lng }}
+            title={marker.name}
+            onClick={() => handleMarkerClick(marker)}
+          />
+        ))}
+        {selectedMarker && (
+          <InfoWindowContent
+            marker={selectedMarker}
+            position={{ lat: selectedMarker.lat, lng: selectedMarker.lng }}
+            onCloseClick={() => setSelectedMarker(null)}
+          >
+            <div>
+              <h3 className="font-semibold">{selectedMarker.name}</h3>
+              <p className="text-sm">{selectedMarker.description}</p>
+            </div>
+          </InfoWindowContent>
+        )}
+      </GoogleMap>
       ) : (
         <div className="h-[500px] flex items-center justify-center bg-gray-100">
           <p className="text-lg">Loading map...</p>
