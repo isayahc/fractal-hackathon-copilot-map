@@ -377,5 +377,4 @@ export default function NycGoogleMapsMarkers() {
   )
 }
 
-// export { NycGoogleMapsMarkers as NycGoogleMapsMarkers }
 export { NycGoogleMapsMarkers }
